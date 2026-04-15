@@ -1,0 +1,63 @@
+# BÁO CÁO PHÂN TÍCH VÀ THIẾT KẾ GIẢI PHÁP: CROSS-FIELD VALIDATION
+
+## 1. Xác định Luồng Dữ liệu (I/O Analysis)
+
+| Thành phần | Đặc tả chi tiết |
+| :--- | :--- |
+| **Input Data** | Đối tượng `UserRegistrationDto` chứa các trường: `username`, `password`, `confirmPassword`. |
+| **Bẫy dữ liệu (Edge Cases)** | **Lỗi NullPointerException:** Một hoặc cả hai trường mật khẩu bị `null` khiến phép so sánh `.equals()` làm sập server nếu không kiểm tra trước. |
+| **Output (Hợp lệ)** | Trả về `200 OK`. Hệ thống tiếp tục luồng đăng ký tài khoản. |
+| **Output (Vi phạm)** | Trả về lỗi toàn cục (Global Error). Thông báo: "Mật khẩu xác nhận không khớp". |
+
+---
+## 2. Đề xuất & So sánh giải pháp
+
+Hệ thống yêu cầu kiểm tra ràng buộc giữa hai trường khác nhau (Cross-field), chúng ta có hai hướng tiếp cận chính:
+
+### 2.1. Danh sách giải pháp
+
+* **Giải pháp 1: Kiểm tra thủ công (Manual Validation)**
+    * Thực hiện `if-else` so sánh trực tiếp bên trong phương thức của `Controller` hoặc `Service`.
+* **Giải pháp 2: Class-Level Custom Annotation**
+    * Tạo một Annotation tùy chỉnh (ví dụ: `@PasswordMatching`) gắn lên cấp độ Class của DTO để Spring tự động kiểm tra trước khi vào logic nghiệp vụ.
+
+### 2.2. Bảng so sánh kỹ thuật
+
+| Tiêu chí | Giải pháp 1 (Thủ công) | Giải pháp 2 (Custom Annotation) |
+| :--- | :--- | :--- |
+| **Boilerplate Code** | Nhiều. Lặp lại code ở mọi API đăng ký/đổi mật khẩu. | **Ít.** Khai báo một lần, sử dụng bằng một dòng nhãn dán. |
+| **Khả năng tái sử dụng** | Thấp. Phải copy-paste logic logic so sánh. | **Rất cao.** Áp dụng được cho mọi DTO có cùng cấu trúc. |
+| **Separation of Concerns** | **Vi phạm.** Trộn lẫn logic kiểm tra dữ liệu vào logic điều phối API. | **Đạt.** Tách biệt hoàn toàn tầng Validation và tầng Controller. |
+| **Trải nghiệm người dùng** | Khó quản lý thông báo lỗi đồng bộ. | Tích hợp sâu với `BindingResult` của Spring. |
+
+---
+
+## 3. Lựa chọn giải pháp
+
+**Quyết định:** Chọn **Giải pháp 2 (Class-Level Annotation)**.
+
+**Lý do:**
+1.  Tuân thủ đúng nguyên tắc **Clean Code** và chuẩn **JSR 380**.
+2.  Giảm thiểu rủi ro sai sót khi hệ thống mở rộng (ví dụ: thêm tính năng đổi mật khẩu).
+3.  Dễ dàng quản lý các thông báo lỗi tập trung, chuyên nghiệp hơn trong mắt Tech Lead.
+
+---
+
+## 4. Thiết kế thuật toán (Pseudocode)
+
+```text
+FUNCTION isValid(registrationDto):
+    // 1. Trích xuất giá trị từ Object
+    pwd = registrationDto.password
+    conf = registrationDto.confirmPassword
+
+    // 2. Chặn bẫy Null Safety (Phòng chống sập server)
+    IF pwd IS NULL OR conf IS NULL:
+        RETURN false (Thông báo: Mật khẩu không được để trống)
+
+    // 3. Kiểm tra tính khớp (Equality Check)
+    IF pwd.equals(conf) IS TRUE:
+        RETURN true
+    ELSE:
+        RETURN false (Thông báo: Mật khẩu không khớp)
+END FUNCTION
